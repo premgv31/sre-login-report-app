@@ -7,11 +7,11 @@ from pathlib import Path
 app = FastAPI()
 
 # Mount static folder for serving HTML
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 def serve_index():
-    html_path = Path("app/static/index.html")
+    html_path = Path("static/index.html")
     return HTMLResponse(content=html_path.read_text(), status_code=200)
 
 # Dummy in-memory user data
