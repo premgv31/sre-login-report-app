@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Login and Report Viewer</title>
+  <style>
+    body { font-family: Arial; margin: 2em; }
+    input, button { margin: 0.5em 0; padding: 0.5em; }
+    #report { margin-top: 1em; color: green; }
+    #error { color: red; }
+  </style>
+</head>
+<body>
+  <h2>Login</h2>
+  <input id="username" placeholder="Username" />
+  <input id="password" type="password" />
+  <button onclick="login()">Login</button>
+
+  <div id="error"></div>
+  <div id="report"></div>
+
+  <script>
+    let token = "";
+
+    async function login() {
+      const username = document.getElementById("username").value;
+      const password = document.getElementById("password").value;
+      const errorDiv = document.getElementById("error");
+      const reportDiv = document.getElementById("report");
+
+      errorDiv.innerText = "";
+      reportDiv.innerText = "";
+
+      const response = await fetch("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        token = data.token;
+        reportDiv.innerText = "Login successful!";
+        getReport();
+      } else {
+        errorDiv.innerText = "Login failed. Check credentials.";
+      }
+    }
+
+    async function getReport() {
+      const response = await fetch(`/report?token=${token}`);
+      if (response.ok) {
+        const data = await response.json();
+        document.getElementById("report").innerText = data.report;
+      } else {
+        document.getElementById("report").innerText = "Unauthorized or expired token.";
+      }
+    }
+  </script>
+</body>
+</html>
+
