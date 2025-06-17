@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Request, Depends
+import os
+from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -10,38 +11,39 @@ SECRET_KEY = "your-very-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+# FastAPI app instance
 app = FastAPI()
 
-# Static HTML
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Resolve static path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 
+# Mount /static for style.css access
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+# Serve the index.html from static directory
 @app.get("/")
 def get_index():
-    return FileResponse("app/static/index.html")
+    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
+# Dummy in-memory user database
+USERS = {
+    "admin": "password123"
+}
 
-# Dummy DB
-USERS = {"admin": "password123"}
-
-
-# Data models
+# Request and token models
 class LoginRequest(BaseModel):
     username: str
     password: str
 
-
-class TokenData(BaseModel):
-    username: str | None = None
-
-
-# Auth logic
+# Create JWT token
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-
+# Decode and validate JWT token
 def verify_token(token: str) -> str:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -52,16 +54,15 @@ def verify_token(token: str) -> str:
     except JWTError:
         raise HTTPException(status_code=403, detail="Invalid token")
 
-
-# Endpoints
+# Login API endpoint
 @app.post("/login")
 def login(req: LoginRequest):
     if USERS.get(req.username) == req.password:
-        token = create_access_token({"sub": req.username}, timedelta(minutes=30))
+        token = create_access_token({"sub": req.username})
         return {"message": "Login successful", "token": token}
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
-
+# Protected report endpoint
 @app.get("/report")
 def get_report(token: str):
     username = verify_token(token)
