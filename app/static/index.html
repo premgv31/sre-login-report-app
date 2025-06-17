@@ -1,59 +1,54 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Login and Report Viewer</title>
-  <style>
-    body { font-family: Arial; margin: 2em; }
-    input, button { margin: 0.5em 0; padding: 0.5em; }
-    #report { margin-top: 1em; color: green; }
-    #error { color: red; }
-  </style>
+  <meta charset="UTF-8" />
+  <title>FastAPI Login + Report</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h2>Login</h2>
-  <input id="username" placeholder="Username" />
-  <input id="password" type="password" />
-  <button onclick="login()">Login</button>
+  <div class="container">
+    <h2>Login</h2>
+    <form id="login-form">
+      <input type="text" id="username" placeholder="Username" required />
+      <input type="password" id="password" placeholder="Password" required />
+      <button type="submit">Login</button>
+    </form>
 
-  <div id="error"></div>
-  <div id="report"></div>
+    <div id="report-box" class="hidden">
+      <h2>Report</h2>
+      <pre id="report-content"></pre>
+      <button onclick="fetchReport()">Refresh Report</button>
+    </div>
+  </div>
 
   <script>
     let token = "";
 
-    async function login() {
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
       const username = document.getElementById("username").value;
       const password = document.getElementById("password").value;
-      const errorDiv = document.getElementById("error");
-      const reportDiv = document.getElementById("report");
 
-      errorDiv.innerText = "";
-      reportDiv.innerText = "";
-
-      const response = await fetch("/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
+      try {
+        const res = await fetch("/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        if (!res.ok) throw new Error("Login failed");
+        const data = await res.json();
         token = data.token;
-        reportDiv.innerText = "Login successful!";
-        getReport();
-      } else {
-        errorDiv.innerText = "Login failed. Check credentials.";
+        document.getElementById("report-box").classList.remove("hidden");
+        fetchReport();
+      } catch (err) {
+        alert(err.message);
       }
-    }
+    });
 
-    async function getReport() {
-      const response = await fetch(`/report?token=${token}`);
-      if (response.ok) {
-        const data = await response.json();
-        document.getElementById("report").innerText = data.report;
-      } else {
-        document.getElementById("report").innerText = "Unauthorized or expired token.";
-      }
+    async function fetchReport() {
+      const res = await fetch(`/report?token=${token}`);
+      const data = await res.json();
+      document.getElementById("report-content").textContent = JSON.stringify(data, null, 2);
     }
   </script>
 </body>
