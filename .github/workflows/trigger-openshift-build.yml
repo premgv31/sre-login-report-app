@@ -1,0 +1,23 @@
+name: Trigger OpenShift Build
+
+on:
+  push:
+    branches:
+      - master  # Change if your main branch is different
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Trigger OpenShift BuildConfig
+        run: |
+          echo "Logging into OpenShift..."
+          oc login https://api.rm1.0a51.p1.openshiftapps.com:6443 \
+            --token=${{ secrets.OCP_TOKEN }} \
+            --insecure-skip-tls-verify
+
+          echo "Starting the build..."
+          oc start-build sre-login-report-app -n premgv31-dev
