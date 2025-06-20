@@ -119,6 +119,7 @@ spec:
                 image: $(params.IMAGE_NAME)
                 ports:
                 - containerPort: 8080
+                  protocol: TCP
         ---
         apiVersion: v1
         kind: Service
@@ -129,7 +130,7 @@ spec:
             app: $(params.APP_NAME)
           ports:
             - protocol: TCP
-              port: 80
+              port: 8080
               targetPort: 8080
         ---
         apiVersion: route.openshift.io/v1
@@ -141,7 +142,7 @@ spec:
             kind: Service
             name: $(params.APP_NAME)
           port:
-            targetPort: 80
+            targetPort: 8080
         EOF
 
 ---
