@@ -59,7 +59,7 @@ spec:
           triggers:
             - type: GitHub
               github:
-                secret: github-webhook-secret
+                secret: Shiva@319
             - type: ConfigChange
             - type: ImageChange
         EOF
