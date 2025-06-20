@@ -1,0 +1,200 @@
+# Task: Git Clone
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: git-clone
+spec:
+  params:
+    - name: url
+      type: string
+    - name: revision
+      type: string
+      default: "master"
+  workspaces:
+    - name: output
+  steps:
+    - name: clone
+      image: alpine/git
+      script: |
+        #!/bin/sh
+        find /workspace/output -mindepth 1 -delete
+        git clone --single-branch --branch $(params.revision) $(params.url) $(workspaces.output.path)
+
+---
+# Task: Create BuildConfig
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: create-buildconfig
+spec:
+  params:
+    - name: APP_NAME
+      type: string
+    - name: GIT_URL
+      type: string
+  steps:
+    - name: create-bc
+      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+      script: |
+        #!/bin/sh
+        cat <<EOF | oc apply -f -
+        apiVersion: build.openshift.io/v1
+        kind: BuildConfig
+        metadata:
+          name: $(params.APP_NAME)
+        spec:
+          runPolicy: Serial
+          source:
+            type: Git
+            git:
+              uri: $(params.GIT_URL)
+          strategy:
+            type: Docker
+            dockerStrategy:
+              dockerfilePath: Dockerfile
+          output:
+            to:
+              kind: ImageStreamTag
+              name: $(params.APP_NAME):latest
+          triggers:
+            - type: GitHub
+              github:
+                secret: github-webhook-secret
+            - type: ConfigChange
+            - type: ImageChange
+        EOF
+
+---
+# Task: Start BuildConfig
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: build-with-bc
+spec:
+  params:
+    - name: APP_NAME
+      type: string
+  steps:
+    - name: start-build
+      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+      script: |
+        #!/bin/sh
+        oc start-build $(params.APP_NAME) --wait
+
+---
+# Task: Deploy App
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: sre-login-report-deploy
+spec:
+  params:
+    - name: APP_NAME
+      type: string
+    - name: IMAGE_NAME
+      type: string
+  steps:
+    - name: deploy
+      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+      script: |
+        #!/bin/sh
+        echo "Deploying $(params.APP_NAME)..."
+        cat <<EOF | oc apply -f -
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: $(params.APP_NAME)
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: $(params.APP_NAME)
+          template:
+            metadata:
+              labels:
+                app: $(params.APP_NAME)
+            spec:
+              containers:
+              - name: $(params.APP_NAME)
+                image: $(params.IMAGE_NAME)
+                ports:
+                - containerPort: 8080
+        ---
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: $(params.APP_NAME)
+        spec:
+          selector:
+            app: $(params.APP_NAME)
+          ports:
+            - protocol: TCP
+              port: 80
+              targetPort: 8080
+        ---
+        apiVersion: route.openshift.io/v1
+        kind: Route
+        metadata:
+          name: $(params.APP_NAME)
+        spec:
+          to:
+            kind: Service
+            name: $(params.APP_NAME)
+          port:
+            targetPort: 80
+        EOF
+
+---
+# Pipeline Definition
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: sre-login-report-pipeline
+spec:
+  params:
+    - name: GIT_URL
+      type: string
+    - name: APP_NAME
+      type: string
+    - name: IMAGE_NAME
+      type: string
+  workspaces:
+    - name: shared-workspace
+  tasks:
+    - name: clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: $(params.GIT_URL)
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+
+    - name: create-bc
+      runAfter: [clone]
+      taskRef:
+        name: create-buildconfig
+      params:
+        - name: APP_NAME
+          value: $(params.APP_NAME)
+        - name: GIT_URL
+          value: $(params.GIT_URL)
+
+    - name: build
+      runAfter: [create-bc]
+      taskRef:
+        name: build-with-bc
+      params:
+        - name: APP_NAME
+          value: $(params.APP_NAME)
+
+    - name: deploy
+      runAfter: [build]
+      taskRef:
+        name: sre-login-report-deploy
+      params:
+        - name: APP_NAME
+          value: $(params.APP_NAME)
+        - name: IMAGE_NAME
+          value: $(params.IMAGE_NAME)

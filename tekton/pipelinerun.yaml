@@ -1,0 +1,17 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  name: sre-login-report-run
+spec:
+  pipelineRef:
+    name: sre-login-report-pipeline
+  params:
+    - name: GIT_URL
+      value: https://github.com/premgv31/sre-login-report-app.git
+    - name: APP_NAME
+      value: sre-login-report-app
+    - name: IMAGE_NAME
+      value: image-registry.openshift-image-registry.svc:5000/premgv31-dev/sre-login-report-app:latest
+  workspaces:
+    - name: shared-workspace
+      emptyDir: {}
