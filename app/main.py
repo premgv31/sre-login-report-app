@@ -2,6 +2,7 @@ import os
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
@@ -22,9 +23,10 @@ STATIC_DIR = os.path.join(BASE_DIR, "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Serve the index.html from static directory
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def get_index():
-    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+    with open(os.path.join(STATIC_DIR, "index.html")) as f:
+        return f.read()
 
 # Dummy in-memory user database
 USERS = {
